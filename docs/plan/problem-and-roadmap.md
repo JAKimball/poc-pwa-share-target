@@ -35,41 +35,42 @@ Based on your recording and notes, here is the synthesized plan of action.
 #### 1. Current State Analysis: Windows vs. Android
 
 **The Windows Environment**
-*   **Share Target Status:** Contrary to previous notes, the Windows version of Obsidian **does not** register itself as a Share Target with the OS. It cannot be selected from the native Windows Share UI (e.g., from Firefox).
-*   **Clipboard Behavior:**
-    *   **Edge:** Places multiple MIME types/formats on the clipboard when copying a URL from the address bar. Obsidian detects this and automatically pastes a formatted `[Title](URL)` Markdown link.
-        *   **Chrome/Firefox:** These browsers only copy the raw URL string to the clipboard. Obsidian pastes this as a raw link without a title.
-            *   *Conclusion:* The "correct" behavior you see on Windows is a result of Edge's clipboard handling, not Obsidian’s Share Target handling.
+
+* **Share Target Status:** Contrary to previous notes, the Windows version of Obsidian **does not** register itself as a Share Target with the OS. It cannot be selected from the native Windows Share UI (e.g., from Firefox).
+* **Clipboard Behavior:**
+  * **Edge:** Places multiple MIME types/formats on the clipboard when copying a URL from the address bar. Obsidian detects this and automatically pastes a formatted `[Title](URL)` Markdown link.
+    * **Chrome/Firefox:** These browsers only copy the raw URL string to the clipboard. Obsidian pastes this as a raw link without a title.
+      * *Conclusion:* The "correct" behavior you see on Windows is a result of Edge's clipboard handling, not Obsidian’s Share Target handling.
 
             **The Android Environment**
-            *   **Share Target Status:** Obsidian registers as a Share Target but works incorrectly (ignoring the `title` field).
-            *   **Source App Inconsistency:** Apps like YouTube, Chrome, and Twitter send data inconsistently. The Title, URL, and Description often jump between the `title`, `text`, and `url` payload fields, making a direct share to Obsidian messy even if Obsidian worked correctly.
+      * **Share Target Status:** Obsidian registers as a Share Target but works incorrectly (ignoring the `title` field).
+      * **Source App Inconsistency:** Apps like YouTube, Chrome, and Twitter send data inconsistently. The Title, URL, and Description often jump between the `title`, `text`, and `url` payload fields, making a direct share to Obsidian messy even if Obsidian worked correctly.
 
             #### 2. The Solution: "Sanitizer" PWA (MVP)
 
             Instead of relying on Obsidian to fix their parser immediately, you will build an intermediate Progressive Web App.
 
             **Core Functionality (The Normalizer):**
-            1.  **Ingest:** The PWA registers as a Share Target on Android (and optionally Windows).
-            2.  **Normalize:** It accepts messy incoming data (Title, Text, URL) from various apps (YouTube, Chrome, etc.).
-            3.  **Format:** It constructs a standard Markdown string: `[Title](URL)`.
-            4.  **Relay:** It shares this formatted string to Obsidian.
-                *   *Mechanism:* It places the formatted Markdown string exclusively into the `text` field of the outgoing share payload, leaving `title` and `url` blank.
-                    *   *Result:* Obsidian receives the text and pastes it as-is, resulting in a correctly rendered Markdown link.
+            1. **Ingest:** The PWA registers as a Share Target on Android (and optionally Windows).
+            2. **Normalize:** It accepts messy incoming data (Title, Text, URL) from various apps (YouTube, Chrome, etc.).
+            3. **Format:** It constructs a standard Markdown string: `[Title](URL)`.
+            4. **Relay:** It shares this formatted string to Obsidian.
+                * *Mechanism:* It places the formatted Markdown string exclusively into the `text` field of the outgoing share payload, leaving `title` and `url` blank.
+                    * *Result:* Obsidian receives the text and pastes it as-is, resulting in a correctly rendered Markdown link.
 
                     **Advanced Capabilities (Future/Roadmap):**
-                    *   **Link Expansion:** The PWA will resolve HTTP redirects (unshortening bit.ly, etc.) to store the final destination URL. *Note: JavaScript-based redirects are a known edge case requiring further thought.*
-                    *   **Metadata Enrichment:** The PWA could fetch the page content to grab descriptions or other metadata to append to the Markdown entry.
-                    *   **Multi-Target Relay:** Capability to send the cleaned data to other apps (e.g., Raindrop.io) or keep a local log of all shared items.
+                    * **Link Expansion:** The PWA will resolve HTTP redirects (unshortening bit.ly, etc.) to store the final destination URL. *Note: JavaScript-based redirects are a known edge case requiring further thought.*
+                    * **Metadata Enrichment:** The PWA could fetch the page content to grab descriptions or other metadata to append to the Markdown entry.
+                    * **Multi-Target Relay:** Capability to send the cleaned data to other apps (e.g., Raindrop.io) or keep a local log of all shared items.
 
                     #### 3. Legacy Data Cleanup (Bulk Fixer)
 
                     You have hundreds of existing Obsidian notes containing raw, unreadable shortcut URLs from mobile sharing.
 
                     **Proposed Feature:**
-                    *   **Input:** Upload/Paste a specific Markdown file into the PWA.
-                    *   **Process:**
-                        1.  Scan for raw URLs (especially shortcuts).
+                    * **Input:** Upload/Paste a specific Markdown file into the PWA.
+                    * **Process:**
+                        1. Scan for raw URLs (especially shortcuts).
                             2.  Resolve URLs to their final destination.
                                 3.  Fetch page titles.
                                 *   **Output:** Return the file with raw URLs replaced by `[Title](URL)` syntax, or optionally move detailed metadata to a footnote/card section.
