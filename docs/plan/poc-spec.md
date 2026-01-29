@@ -1,8 +1,21 @@
 # POC: PWA Share Target Technical Validation
 
 **Date:** 2026-01-24  \
-**Status:** Draft  \
+**Status:** ✅ Validated  \
 **Purpose:** Validate technical feasibility before investing in MVP architecture
+
+---
+
+## Validation Results
+
+| Question | Result | Notes |
+|----------|--------|-------|
+| Q1: Share Target Registration | ✅ Pass | PWA appears in Android share sheet after installation |
+| Q2: Data Reception | ✅ Pass | Successfully logs `title`, `text`, `url` from Chrome, YouTube, Twitter/X |
+| Q3: Outbound Relay to Obsidian | ✅ Pass | Clipboard workaround works; Obsidian URI integration in progress |
+| Q4: URL Redirect Resolution | ⏸️ Deferred | Not implemented in POC; acceptable per success criteria |
+
+**Implementation Note:** The current `sendToObsidian()` uses a clipboard workaround (copy + open Obsidian) rather than the spec's `navigator.share({ text: markdown })`. This works but Obsidian URI integration (`obsidian://daily?content=...&append`) is the preferred approach for MVP.
 
 ---
 
@@ -140,19 +153,25 @@ navigator.share({ text: markdown });
 
 ---
 
-## Next Steps After POC
+## Next Steps
 
-If successful:
+### Completed
 
-1. Document findings (which apps send what data)
-2. Create MVP repo with proper architecture
-3. Define MVP feature set based on validated capabilities
-4. File Obsidian bug report referencing POC as workaround
+- ✅ Q1-Q3 validated—PWA receives share data and normalizes correctly
+- ✅ Clipboard workaround functional for Obsidian relay
 
-If blocked:
+### In Progress
 
-1. Document what failed and why
-2. Research alternatives (native app, browser extension, etc.)
+- 🔄 Local history logging—store share data in localStorage for analysis
+- 🔄 Obsidian URI integration—use `obsidian://daily?content=...&append` for direct relay
+
+### Future (MVP)
+
+- Proper Obsidian URI integration with vault selection
+- URL redirect resolution for shortened URLs
+- Metadata enrichment (page descriptions, Open Graph data)
+- Multi-target relay (Raindrop, etc.)
+- Polished UI in separate repo
 
 ---
 

@@ -2,38 +2,75 @@
 
 ## Project Overview
 
-A **Proof of Concept PWA** that acts as an intermediary "share normalizer" on Android. It receives inconsistent share data from various apps (Chrome, YouTube, Twitter), normalizes it into clean markdown (`[Title](URL)`), then allows copying or forwarding to Obsidian.
+A **validated PWA prototype** that acts as an intermediary "share normalizer" on Android. It receives inconsistent share data from various apps (Chrome, YouTube, Twitter), normalizes it into clean markdown (`[Title](URL)`), then allows copying or forwarding to Obsidian.
+
+**Status:** POC validated ✓ — technically proven and useful as-is. A polished MVP will be developed in a separate repo; this repo remains an **experimentation platform** for quick feature testing without UI polish overhead.
 
 **Architecture Flow:**
+
 ```
 [Source App] → Share → [This PWA] → Normalize → [Obsidian/Clipboard]
 ```
 
 ## Key Files
 
-| File | Purpose |
-|------|---------|
+| File                              | Purpose                                                                                                        |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | [manifest.json](../manifest.json) | PWA manifest with `share_target` configuration—defines how Android share sheet data is received via GET params |
-| [app.js](../app.js) | Core normalization logic—parses URL params, extracts URL/title from inconsistent fields, formats markdown |
-| [index.html](../index.html) | Minimal UI with textarea output and action buttons; registers service worker |
-| [sw.js](../sw.js) | Minimal service worker (pass-through fetch) required for PWA installability |
+| [app.js](../app.js)               | Core normalization logic—parses URL params, extracts URL/title from inconsistent fields, formats markdown      |
+| [index.html](../index.html)       | Minimal UI with textarea output and action buttons; registers service worker                                   |
+| [sw.js](../sw.js)                 | Minimal service worker (pass-through fetch) required for PWA installability                                    |
 
 ## Critical Patterns
 
 ### Share Data Normalization
+
 Apps send share data inconsistently—the URL may be in `url` OR embedded in `text`. The normalization logic in [app.js](../app.js) prioritizes the `url` param, then extracts from `text` using regex:
+
 ```javascript
 const urlRegex = /(https?:\/\/[^\s]+)/g
-if (sharedUrl) { finalUrl = sharedUrl }
-else if (sharedText) { const match = sharedText.match(urlRegex); if (match) finalUrl = match[0] }
+if (sharedUrl) {
+  finalUrl = sharedUrl
+} else if (sharedText) {
+  const match = sharedText.match(urlRegex)
+  if (match) finalUrl = match[0]
+}
 ```
 
 ### PWA Share Target Config
+
 The `share_target` in [manifest.json](../manifest.json) uses GET method—share data arrives as URL query params (`?title=...&text=...&url=...`).
+
+## Obsidian URI Integration
+
+Reference: https://help.obsidian.md/Extending+Obsidian/Obsidian+URI
+
+**Key actions to explore:**
+| Action | URI Pattern | Use Case |
+|--------|-------------|----------|
+| `daily` | `obsidian://daily?vault=...&content=...&append` | Append link to daily note (primary interest) |
+| `new` | `obsidian://new?vault=...&name=...&content=...` | Create new note with content |
+| `open` | `obsidian://open?vault=...&file=...` | Open specific note |
+
+**Critical parameters:**
+
+- `content` — the markdown to insert (must be URI encoded)
+- `append` — add to end of file (for daily notes)
+- `vault` — vault name or 16-char vault ID (optional in POC—uses last focused vault; MVP will need proper vault selection)
+
+**Example for daily note append:**
+
+```javascript
+const markdown = `[${title}](${url})`
+// Omit vault param for POC (uses last focused); omit silent to see note as confirmation
+const uri = `obsidian://daily?content=${encodeURIComponent(markdown)}&append`
+window.location.href = uri
+```
 
 ## Development Workflow
 
 **Testing requires a real Android device or emulator:**
+
 1. Serve files via HTTPS (required for PWA installation)—use `npx serve` or similar
 2. Open in Chrome on Android and install as PWA ("Add to Home Screen")
 3. Share from another app (YouTube, Chrome) to test normalization
@@ -41,17 +78,22 @@ The `share_target` in [manifest.json](../manifest.json) uses GET method—share 
 
 **No build step**—this is vanilla HTML/JS/CSS. Edit and refresh.
 
-## Current Limitations (POC Scope)
+## Local History Logging
+
+Share data is logged to localStorage (`shareLog` key) for analysis. Each entry includes:
+- `timestamp`, `sharedTitle`, `sharedText`, `sharedUrl` — raw inputs from share
+- `finalTitle`, `finalUrl` — normalized outputs
+
+The log has a rolling limit of 100 entries. Use "Export Log to Obsidian" to create a note with the full log as a JSON code block, or "Clear Log" to reset.
+
+## Current Limitations
 
 - No offline caching (service worker is minimal pass-through)
-- No URL redirect resolution (shortened URLs like `bit.ly` stay shortened)
-- Obsidian integration is clipboard-based workaround (copies then opens app)
+- No URL redirect resolution (shortened URLs stay shortened)
 - No error handling beyond debug logging
+- Vault name currently not configurable (would need settings UI)
 
-## Future Direction
+## Planning Documents
 
-See [docs/plan/poc-spec.md](../docs/plan/poc-spec.md) for validation criteria and [docs/plan/brainstorm-pwa-share-target.md](../docs/plan/brainstorm-pwa-share-target.md) for the full problem analysis. If POC succeeds, MVP will add:
-- Proper Obsidian URI integration
-- URL redirect resolution
-- Metadata enrichment
-- Multi-target relay (Raindrop, etc.)
+- [docs/plan/poc-spec.md](../docs/plan/poc-spec.md) — Original validation criteria (all passed)
+- [docs/plan/brainstorm-pwa-share-target.md](../docs/plan/brainstorm-pwa-share-target.md) — Full problem analysis and MVP roadmap

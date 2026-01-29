@@ -44,6 +44,25 @@ document.addEventListener('DOMContentLoaded', () => {
   const markdown = finalUrl ? `[${finalTitle}](${finalUrl})` : sharedText || ''
 
   document.getElementById('output').value = markdown
+
+  // 4. Log share data to localStorage (only if we received share data)
+  if (sharedTitle || sharedText || sharedUrl) {
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      sharedTitle,
+      sharedText,
+      sharedUrl,
+      finalTitle,
+      finalUrl
+    }
+    let shareLog = JSON.parse(localStorage.getItem('shareLog') || '[]')
+    shareLog.push(logEntry)
+    // Keep only the last 100 entries
+    if (shareLog.length > 100) {
+      shareLog = shareLog.slice(-100)
+    }
+    localStorage.setItem('shareLog', JSON.stringify(shareLog))
+  }
 })
 
 function copyToClipboard() {
@@ -57,14 +76,28 @@ function copyToClipboard() {
 
 function sendToObsidian() {
   const content = document.getElementById('output').value
-  // Uses the "new" action to create a note, or append.
-  // For now, let's just use the URI to create a new generic note or append to daily note if you use Advanced URI plugin.
-  // Simple version: Open Obsidian (user can then paste).
-  // Advanced version: window.location.href = `obsidian://new?content=${encodeURIComponent(content)}`;
+  // Use the daily action to append to today's daily note
+  // Omit vault param to use last focused vault
+  const uri = `obsidian://daily?content=${encodeURIComponent(content)}&append`
+  window.location.href = uri
+}
 
-  // Let's try to copy first, then open Obsidian
-  copyToClipboard()
-  setTimeout(() => {
-    window.location.href = 'obsidian://open'
-  }, 500)
+function exportLogToObsidian() {
+  const shareLog = JSON.parse(localStorage.getItem('shareLog') || '[]')
+  if (shareLog.length === 0) {
+    alert('No log entries to export.')
+    return
+  }
+  const today = new Date().toISOString().split('T')[0]
+  const noteName = `Share Log - ${today}`
+  const content = '```json\n' + JSON.stringify(shareLog, null, 2) + '\n```'
+  const uri = `obsidian://new?name=${encodeURIComponent(noteName)}&content=${encodeURIComponent(content)}`
+  window.location.href = uri
+}
+
+function clearLog() {
+  if (confirm('Clear all log entries?')) {
+    localStorage.removeItem('shareLog')
+    alert('Log cleared.')
+  }
 }
