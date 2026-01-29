@@ -173,6 +173,69 @@ navigator.share({ text: markdown });
 - Multi-target relay (Raindrop, etc.)
 - Polished UI in separate repo
 
+### Future Experiment: File/Media Share Handling
+
+Currently the PWA only handles text shares (GET method). Extending to files (images, videos) could enable richer workflows.
+
+**Manifest changes required:**
+
+```json
+"share_target": {
+  "action": "./index.html",
+  "method": "POST",
+  "enctype": "multipart/form-data",
+  "params": {
+    "title": "title",
+    "text": "text",
+    "url": "url",
+    "files": [
+      {
+        "name": "media",
+        "accept": ["image/*", "video/*", "audio/*"]
+      }
+    ]
+  }
+}
+```
+
+**Implementation considerations:**
+
+- Service worker must intercept POST and extract form data (more complex than current GET params)
+- `navigator.share({ files: [...] })` could pass media to Obsidian, which saves to vault attachment folder
+- Follow-up `obsidian://daily?content=![](filename)&append` could append markdown reference
+
+**Open questions to explore:**
+
+1. Does Obsidian preserve original filename or generate one? Need to know for markdown reference.
+2. Can URI navigation happen after `navigator.share()` completes, or does share UI block?
+3. Will two user gestures be required (share file, then append reference)?
+4. Alternative: clipboard-based approach for images?
+
+**Clipboard-based approach (speculative):**
+
+The Obsidian URI supports a `clipboard` parameter for `new` action that uses clipboard contents instead of `content` param. Could this work for images?
+
+*Possible flow:*
+
+1. Receive image via POST share target
+2. Copy image blob to clipboard using `navigator.clipboard.write()` with `ClipboardItem`
+3. Navigate to `obsidian://new?clipboard&name=...` hoping Obsidian reads image from clipboard
+
+*Challenges and unknowns:*
+
+- **Android clipboard support** — Android does support non-text clipboard content (images, URIs) at the OS level via `ClipData`, but browser access is limited. The Async Clipboard API (`navigator.clipboard.write()`) with image MIME types has inconsistent support across Android browsers/WebViews.
+- **PWA context** — Installed PWAs may have different clipboard permissions than browser tabs. Need to test if `navigator.clipboard.write()` works for blobs in PWA standalone mode.
+- **Obsidian's `clipboard` param** — Documentation doesn't specify if it handles binary/image data or only text. Likely text-only based on typical URI parameter handling.
+- **User permission prompts** — Clipboard write may trigger permission dialogs, adding friction to the workflow.
+- **Data URL alternative** — Could encode image as base64 data URL and pass in `content` param, but URI length limits make this impractical for anything beyond tiny images.
+
+*Verdict:* Likely not viable for images. The `navigator.share({ files })` approach is probably more reliable, even if it requires two user gestures.
+
+**Potential use cases:**
+
+- Share photo from gallery → save to vault + append timestamped reference to daily note
+- Share screenshot → OCR extraction (future) + save + reference
+
 ---
 
 ## References
