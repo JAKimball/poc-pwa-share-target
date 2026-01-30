@@ -25,3 +25,7 @@
 ## Problems / Questions to Answer
 
 - I have yet to see a single app that populates the `url` param in share target. Why? Is something broken in my PWA config? Or do apps just not do this?
+
+- [ ] investigate length limits on protocols used (URI s, URI parameters, etc.)
+  - we get URI too long error in POC app when sharing Gemini DR report
+- [ ] investigate how Obsidian handles large content inserts via URI (e.g., long articles)
