@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Share Target Test Page</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #1e1e1e;
+      color: #dcddde;
+      padding: 20px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      color: #7b68ee;
+      font-size: 1.5rem;
+    }
+
+    .share-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 15px 25px;
+      background: #7b68ee;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      margin: 10px 0;
+    }
+
+    .share-btn:active {
+      background: #6a5acd;
+    }
+
+    .share-btn svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .info {
+      background: #2f2f2f;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 15px 0;
+      font-family: monospace;
+      font-size: 14px;
+    }
+
+    .info dt {
+      color: #888;
+      margin-top: 10px;
+    }
+
+    .info dd {
+      margin: 5px 0 0 0;
+      word-break: break-all;
+    }
+
+    #status {
+      margin-top: 15px;
+      padding: 10px;
+      border-radius: 8px;
+    }
+
+    .success {
+      background: #2d4a2d;
+    }
+
+    .error {
+      background: #4a2d2d;
+    }
+
+    .pending {
+      background: #4a4a2d;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Share Target Test</h1>
+  <p>Use this page to test sharing to the Link2MD PWA.</p>
+
+  <button class="share-btn" id="shareBtn">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.368-2.684 3 3 0 00-5.368 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+    </svg>
+    Share This Page
+  </button>
+
+  <div class="info">
+    <dl>
+      <dt>title:</dt>
+      <dd id="shareTitle"></dd>
+      <dt>url:</dt>
+      <dd id="shareUrl"></dd>
+      <dt>text:</dt>
+      <dd id="shareText">(not set)</dd>
+    </dl>
+  </div>
+
+  <div id="status"></div>
+
+  <h2>Custom Share</h2>
+  <p>Test with custom values:</p>
+
+  <label style="display:block; margin-top: 10px;">
+    Title:
+    <input type="text" id="customTitle" value="Custom Test Title"
+      style="width: 100%; padding: 8px; margin-top: 5px; background: #2f2f2f; border: 1px solid #444; color: white; border-radius: 4px;">
+  </label>
+
+  <label style="display:block; margin-top: 10px;">
+    URL:
+    <input type="text" id="customUrl" value="https://example.com/test-page"
+      style="width: 100%; padding: 8px; margin-top: 5px; background: #2f2f2f; border: 1px solid #444; color: white; border-radius: 4px;">
+  </label>
+
+  <label style="display:block; margin-top: 10px;">
+    Text (optional):
+    <input type="text" id="customText" placeholder="Optional text content"
+      style="width: 100%; padding: 8px; margin-top: 5px; background: #2f2f2f; border: 1px solid #444; color: white; border-radius: 4px;">
+  </label>
+
+  <button class="share-btn" id="customShareBtn" style="background: #483699;">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.368-2.684 3 3 0 00-5.368 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+    </svg>
+    Share Custom Data
+  </button>
+
+  <script>
+    const statusEl = document.getElementById('status')
+
+    function showStatus(message, type) {
+      statusEl.textContent = message
+      statusEl.className = type
+    }
+
+    // Display what will be shared
+    document.getElementById('shareTitle').textContent = document.title
+    document.getElementById('shareUrl').textContent = location.href
+
+    // Share current page
+    document.getElementById('shareBtn').addEventListener('click', async () => {
+      const shareData = {
+        title: document.title,
+        url: location.href
+      }
+
+      if (!navigator.share) {
+        showStatus('Web Share API not supported on this device/browser', 'error')
+        return
+      }
+
+      showStatus('Opening share sheet...', 'pending')
+      try {
+        await navigator.share(shareData)
+        showStatus('Shared successfully!', 'success')
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          showStatus('Share cancelled', 'pending')
+        } else {
+          showStatus('Error: ' + err.message, 'error')
+        }
+      }
+    })
+
+    // Share custom data
+    document.getElementById('customShareBtn').addEventListener('click', async () => {
+      const shareData = {
+        title: document.getElementById('customTitle').value,
+        url: document.getElementById('customUrl').value
+      }
+
+      const customText = document.getElementById('customText').value
+      if (customText) {
+        shareData.text = customText
+      }
+
+      if (!navigator.share) {
+        showStatus('Web Share API not supported on this device/browser', 'error')
+        return
+      }
+
+      showStatus('Sharing: ' + JSON.stringify(shareData), 'pending')
+      try {
+        await navigator.share(shareData)
+        showStatus('Shared successfully!', 'success')
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          showStatus('Share cancelled', 'pending')
+        } else {
+          showStatus('Error: ' + err.message, 'error')
+        }
+      }
+    });
+  </script>
+</body>
+
+</html>
