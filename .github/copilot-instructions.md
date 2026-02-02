@@ -86,6 +86,32 @@ Share data is logged to localStorage (`shareLog` key) for analysis. Each entry i
 
 The log has a rolling limit of 100 entries. Use "Export Log to Obsidian" to create a note with the full log as a JSON code block, or "Clear Log" to reset.
 
+## Known Platform Limitations
+
+### Android `url` Parameter Always Null (By Design)
+
+On Android, the `url` query parameter in share target requests is **always empty**. This is documented behavior, not a bug:
+
+> "For example, on Android, **the url field will be empty because it's not supported in Android's share system**." — [Chrome for Developers](https://developer.chrome.com/docs/capabilities/web-apis/web-share-target)
+
+> "The host share system may not have a dedicated URL field, but a convention that both plain text and URLs are sometimes transmitted in a 'text' field. **This is the case on Android**." — [W3C Web Share Target API Spec](https://w3c.github.io/web-share-target/)
+
+**Why this happens:** Android's Intent system uses `EXTRA_TEXT` for both text and URLs—there's no separate URL field. When Chrome translates Web Share data to an Android Intent, the URL gets placed in `text`, not `url`.
+
+**Solution:** Extract URLs from the `text` field using regex (already implemented in [app.js](../app.js)).
+
+### iOS Does Not Support Web Share Target API
+
+iOS Safari **does not support the Web Share Target API** at all. PWAs on iOS cannot register as share targets.
+
+> "It's impossible to capture URLs on PWAs installed on iOS and iPadOS from Safari." — [web.dev](https://web.dev/learn/pwa/os-integration)
+
+This means Obsidian on iOS uses a different mechanism (native share extensions), not the Web Share Target API.
+
+### POST Method Has Same Android Limitation
+
+Using `method: "POST"` instead of `method: "GET"` does **not** fix the `url` parameter issue. The limitation is in Android's Intent system, not the HTTP method.
+
 ## Current Limitations
 
 - No offline caching (service worker is minimal pass-through)

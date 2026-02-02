@@ -11,7 +11,7 @@
 | Question | Result | Notes |
 |----------|--------|-------|
 | Q1: Share Target Registration | ✅ Pass | PWA appears in Android share sheet after installation |
-| Q2: Data Reception | ✅ Pass | Successfully logs `title`, `text`, `url` from Chrome, YouTube, Twitter/X |
+| Q2: Data Reception | ✅ Pass | Successfully logs `title`, `text` from Chrome, YouTube, Twitter/X. **Note:** `url` param is always null on Android—this is [documented platform behavior](https://developer.chrome.com/docs/capabilities/web-apis/web-share-target), not a bug. URLs are extracted from `text` field via regex. |
 | Q3: Outbound Relay to Obsidian | ✅ Pass | Clipboard workaround works; Obsidian URI integration in progress |
 | Q4: URL Redirect Resolution | ⏸️ Deferred | Not implemented in POC; acceptable per success criteria |
 
