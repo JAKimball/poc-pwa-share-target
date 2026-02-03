@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/markdownlint.json",
+  "no-duplicate-heading": {
+    "siblings_only": true
+  },
+  "line-length": false,
+  "no-trailing-spaces": {
+    "br_spaces": 0 // Disallow two-space hard breaks
+  },
+  "blanks-around-lists": false,
+  "blanks-around-headings": false,
+  "blanks-around-fences": false
+}

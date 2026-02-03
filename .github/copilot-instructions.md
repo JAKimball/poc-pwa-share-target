@@ -3,9 +3,7 @@
 ## Project Overview
 
 A **validated PWA prototype** that acts as an intermediary "share normalizer" on Android. It receives inconsistent share data from various apps (Chrome, YouTube, Twitter), normalizes it into clean markdown (`[Title](URL)`), then allows copying or forwarding to Obsidian.
-
 **Status:** POC validated ✓ — technically proven and useful as-is. A polished MVP will be developed in a separate repo; this repo remains an **experimentation platform** for quick feature testing without UI polish overhead.
-
 **Architecture Flow:**
 
 ```
@@ -51,14 +49,12 @@ Reference: https://help.obsidian.md/Extending+Obsidian/Obsidian+URI
 | `daily` | `obsidian://daily?vault=...&content=...&append` | Append link to daily note (primary interest) |
 | `new` | `obsidian://new?vault=...&name=...&content=...` | Create new note with content |
 | `open` | `obsidian://open?vault=...&file=...` | Open specific note |
-
 **Critical parameters:**
 
 - `content` — the markdown to insert (must be URI encoded)
 - `append` — add to end of file (for daily notes)
 - `vault` — vault name or 16-char vault ID (optional in POC—uses last focused vault; MVP will need proper vault selection)
-
-**Example for daily note append:**
+  **Example for daily note append:**
 
 ```javascript
 const markdown = `[${title}](${url})`
@@ -81,6 +77,7 @@ window.location.href = uri
 ## Local History Logging
 
 Share data is logged to localStorage (`shareLog` key) for analysis. Each entry includes:
+
 - `timestamp`, `sharedTitle`, `sharedText`, `sharedUrl` — raw inputs from share
 - `finalTitle`, `finalUrl` — normalized outputs
 
@@ -118,6 +115,22 @@ Using `method: "POST"` instead of `method: "GET"` does **not** fix the `url` par
 - No URL redirect resolution (shortened URLs stay shortened)
 - No error handling beyond debug logging
 - Vault name currently not configurable (would need settings UI)
+
+## Markdown Style Guide
+
+This project follows the markdown conventions from [JAKimball/ai-collaboration-guides](https://github.com/JAKimball/ai-collaboration-guides):
+
+- **Style Essentials:** [style-essentials.md](https://github.com/JAKimball/ai-collaboration-guides/blob/main/markdown/style-essentials.md) — Core formatting conventions
+- **Code Blocks:** [code-blocks.md](https://github.com/JAKimball/ai-collaboration-guides/blob/main/markdown/code-blocks.md) — Fenced blocks, language tags, nesting
+- **Linter Config:** [.markdownlint.jsonc](../.markdownlint.jsonc) — Automated validation rules
+  **Key Rules:**
+
+- Line length: 80 chars for prose (code/tables exempt)
+- Hard breaks: Use backslash (`\`), not two trailing spaces
+- Lists: Use hyphens (`-`) for unordered
+- Blank lines: One line around headings, lists, code blocks
+- Code blocks: Always use fenced with language tags (never empty)
+- Headings: ATX-style (`#`), hierarchical (no skipping levels)
 
 ## Planning Documents
 
