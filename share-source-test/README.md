@@ -12,7 +12,8 @@ npx live-server
 ngrok http 8080
 ```
 
-Open the ngrok HTTPS URL on your Android device, then use the share buttons to test sharing to the Link2MD PWA.
+Open the ngrok HTTPS URL on your Android device, then use the share
+buttons to test sharing to the Link2MD PWA.
 
 ## Files
 
