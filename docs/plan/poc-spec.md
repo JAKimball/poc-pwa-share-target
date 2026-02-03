@@ -58,10 +58,11 @@ apps?
 
 ### Q3: Outbound Relay to Obsidian
 
-**Question:** Can we share *to* Obsidian with controlled field content?
+**Question:** Can we share *to* Obsidian with controlled field
+content?
 
-**Validation:** Construct a share payload with formatted markdown in `text`
-field only, invoke share to Obsidian, confirm it pastes correctly.
+**Validation:** Construct a share payload with formatted markdown in
+`text` field only, invoke share to Obsidian, confirm it pastes correctly.
 
 **Critical:** This is the core hypothesis—that placing `[Title](URL)` in the
 `text` field (with empty `title` and `url`) produces correct Obsidian behavior.

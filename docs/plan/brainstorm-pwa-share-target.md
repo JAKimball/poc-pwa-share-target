@@ -9,17 +9,17 @@
 
 ## Problem Statement
 
-When sharing links from mobile apps (YouTube, Chrome, Twitter, etc.) to
-Obsidian on Android, the resulting markdown is malformed or unreadable. Links
-appear as raw URLs without titles, often shortened URLs that convey no meaning
-to human readers.
+When sharing links from mobile apps (YouTube, Chrome, Twitter, etc.)
+to Obsidian on Android, the resulting markdown is malformed or
+unreadable. Links appear as raw URLs without titles, often shortened
+URLs that convey no meaning to human readers.
 
 The root cause is twofold:
 
-1. **Obsidian's behavior:** Current Android version ignores the `title` field
-   in share payloads, using only `text` and `url`
-2. **Source app inconsistency:** Different apps populate `title`, `text`, and
-   `url` fields inconsistently
+1. **Obsidian's behavior:** Current Android version ignores the
+   `title` field in share payloads, using only `text` and `url`
+2. **Source app inconsistency:** Different apps populate `title`,
+   `text`, and `url` fields inconsistently
 
 ---
 

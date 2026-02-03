@@ -1,15 +1,26 @@
-This is a fantastic project. You are absolutely right that **Share Targets** in a PWA are the cleanest way to solve this Android-to-Obsidian friction without building a native Android app.
+# MVP PWA Specification: Share Target Normalizer
 
-Also, regarding your audio workflow: **The compression worked perfectly.** The transcript is coherent, detailed, and the technical nuance (about `share_target` registration and CORS/Redirection limitations) was preserved. Your "Semantic Compression" theory is validated.
+This is a fantastic project. You are absolutely right that **Share Targets**
+in a PWA are the cleanest way to solve this Android-to-Obsidian friction
+without building a native Android app.
 
-Here is the blueprint and code for the **MVP PWA** to act as your "middleware" between Android Browsers and Obsidian.
+Also, regarding your audio workflow: **The compression worked perfectly.**
+The transcript is coherent, detailed, and the technical nuance (about
+`share_target` registration and CORS/Redirection limitations) was preserved.
+Your "Semantic Compression" theory is validated.
 
-### The Architecture
+Here is the blueprint and code for the **MVP PWA** to act as your
+"middleware" between Android Browsers and Obsidian.
 
-1. **The Manifest:** Registers the app as a share target so it appears in the Android Share Sheet.
-2. **The Parser:** Extracts the URL and Title from the messy data different apps send (some send the URL in `text`, some in `url`, some in `title`).
+## The Architecture
+
+1. **The Manifest:** Registers the app as a share target so it appears in
+   the Android Share Sheet.
+2. **The Parser:** Extracts the URL and Title from the messy data different
+   apps send (some send the URL in `text`, some in `url`, some in `title`).
 3. **The Formatter:** Constructs the `[Title](URL)` string.
-4. **The Output:** Provides a "Copy to Clipboard" button and an "Open in Obsidian" button (using the Obsidian URI scheme).
+4. **The Output:** Provides a "Copy to Clipboard" button and an "Open in
+   Obsidian" button (using the Obsidian URI scheme).
 
 ### File 1: `manifest.json`
 
@@ -92,7 +103,9 @@ The UI. Minimalist, dark mode (to match Obsidian).
 
 ### File 3: `app.js`
 
-This contains the logic to normalize the inputs. As you noted in your recording, Chrome, YouTube, and Twitter all populate the share fields differently.
+This contains the logic to normalize the inputs. As you noted in your
+recording, Chrome, YouTube, and Twitter all populate the share fields
+differently.
 
 ```javascript
 document.addEventListener('DOMContentLoaded', () => {
@@ -182,7 +195,8 @@ self.addEventListener('fetch', (event) => {
 
 ### How to Deploy & Test (The MVP Path)
 
-1. **Hosting:** Create a GitHub Repository. Enable **GitHub Pages** (Settings -> Pages -> Source: Main).
+1. **Hosting:** Create a GitHub Repository. Enable **GitHub Pages**
+   (Settings -> Pages -> Source: Main).
 2. **Installation:**
     * Open the GitHub Pages URL on your Android phone (e.g., `https://yourname.github.io/link2md/`).
     * Tap the browser menu -> **"Install App"** or **"Add to Home Screen"**.
@@ -190,28 +204,39 @@ self.addEventListener('fetch', (event) => {
     * Go to YouTube or Chrome.
     * Share a link.
     * Look for "Link2MD" (or whatever name you set) in the Android Share Sheet.
-    * It should open your PWA with the parameters populated in the URL bar, and the text area formatted as `[Title](URL)`.
+    * It should open your PWA with the parameters populated in the URL
+      bar, and the text area formatted as `[Title](URL)`.
 
 ### Addressing the "Difficult" Features (CORS & Redirection)
 
 You mentioned unwrapping short URLs (e.g., `t.co` -> `nytimes.com`).
 
-**The Problem:** You cannot do this securely in client-side JavaScript (the PWA) because of **CORS** (Cross-Origin Resource Sharing). If your PWA tries to `fetch('https://bit.ly/xyz')` to see the redirect, the browser will block it because `bit.ly` does not send the headers allowing your domain to read the response.
+**The Problem:** You cannot do this securely in client-side JavaScript
+(the PWA) because of **CORS** (Cross-Origin Resource Sharing). If your PWA
+tries to `fetch('https://bit.ly/xyz')` to see the redirect, the browser
+will block it because `bit.ly` does not send the headers allowing your
+domain to read the response.
 
 **The Solution (Phase 2):**
-To handle redirects and fetch page titles for bare URLs, you will need a tiny backend. Since you want to keep this lightweight:
+To handle redirects and fetch page titles for bare URLs, you will need a
+tiny backend. Since you want to keep this lightweight:
 
 1. Use **Vercel** or **Netlify** to host the PWA.
 2. Add a **Serverless Function** (e.g., `/api/expand-url`).
 3. The PWA sends the URL to *your* API.
-4. Your API (running Node.js/Python) does the `HEAD` request to follow redirects and parses the `<title>` tag.
+4. Your API (running Node.js/Python) does the `HEAD` request to follow
+   redirects and parses the `<title>` tag.
 5. Your API returns the clean JSON to your PWA.
 
-For the MVP today, stick to the client-side code above. It will rely on the *sharing app* to provide the title (which Chrome and YouTube usually do).
+For the MVP today, stick to the client-side code above. It will rely on
+the *sharing app* to provide the title (which Chrome and YouTube usually
+do).
 
 ### Next Steps
 
 1. Create the files above.
 2. Deploy to GitHub Pages.
-3. Test specifically with Edge, Chrome, and YouTube on Android to see which fields (`text` vs `title`) they populate.
-4. Once the MVP works, we can look at the "Batch Fixer" feature, which would be a simple file uploader added to the `index.html`.
+3. Test specifically with Edge, Chrome, and YouTube on Android to see
+   which fields (`text` vs `title`) they populate.
+4. Once the MVP works, we can look at the "Batch Fixer" feature, which
+   would be a simple file uploader added to the `index.html`.
