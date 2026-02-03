@@ -6,7 +6,7 @@ A **validated PWA prototype** that acts as an intermediary "share normalizer" on
 **Status:** POC validated ✓ — technically proven and useful as-is. A polished MVP will be developed in a separate repo; this repo remains an **experimentation platform** for quick feature testing without UI polish overhead.
 **Architecture Flow:**
 
-```
+```text
 [Source App] → Share → [This PWA] → Normalize → [Obsidian/Clipboard]
 ```
 
@@ -41,20 +41,23 @@ The `share_target` in [manifest.json](../manifest.json) uses GET method—share 
 
 ## Obsidian URI Integration
 
-Reference: https://help.obsidian.md/Extending+Obsidian/Obsidian+URI
+Reference: [Obsidian URI](https://help.obsidian.md/Extending+Obsidian/Obsidian+URI)
 
 **Key actions to explore:**
-| Action | URI Pattern | Use Case |
-|--------|-------------|----------|
+
+| Action  | URI Pattern                                     | Use Case                                     |
+| ------- | ----------------------------------------------- | -------------------------------------------- |
 | `daily` | `obsidian://daily?vault=...&content=...&append` | Append link to daily note (primary interest) |
-| `new` | `obsidian://new?vault=...&name=...&content=...` | Create new note with content |
-| `open` | `obsidian://open?vault=...&file=...` | Open specific note |
+| `new`   | `obsidian://new?vault=...&name=...&content=...` | Create new note with content                 |
+| `open`  | `obsidian://open?vault=...&file=...`            | Open specific note                           |
+
 **Critical parameters:**
 
 - `content` — the markdown to insert (must be URI encoded)
 - `append` — add to end of file (for daily notes)
 - `vault` — vault name or 16-char vault ID (optional in POC—uses last focused vault; MVP will need proper vault selection)
-  **Example for daily note append:**
+
+**Example for daily note append:**
 
 ```javascript
 const markdown = `[${title}](${url})`
@@ -90,7 +93,7 @@ The log has a rolling limit of 100 entries. Use "Export Log to Obsidian" to crea
 On Android, the `url` query parameter in share target requests is **always empty**. This is documented behavior, not a bug:
 
 > "For example, on Android, **the url field will be empty because it's not supported in Android's share system**." — [Chrome for Developers](https://developer.chrome.com/docs/capabilities/web-apis/web-share-target)
-
+>
 > "The host share system may not have a dedicated URL field, but a convention that both plain text and URLs are sometimes transmitted in a 'text' field. **This is the case on Android**." — [W3C Web Share Target API Spec](https://w3c.github.io/web-share-target/)
 
 **Why this happens:** Android's Intent system uses `EXTRA_TEXT` for both text and URLs—there's no separate URL field. When Chrome translates Web Share data to an Android Intent, the URL gets placed in `text`, not `url`.
