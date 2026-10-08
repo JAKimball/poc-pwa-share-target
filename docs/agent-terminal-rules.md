@@ -8,7 +8,7 @@
 > ~/projects/sync-agent-rules.sh
 > ```
 >
-> If you are editing _this_ copy, copy your changes back to the central file
+> If you are editing *this* copy, copy your changes back to the central file
 > first, then sync — otherwise the next sync will silently overwrite them.
 > (Note: agents in sandboxed terminals cannot see or write the central file
 > at `~/projects/` — hand the edit to the user, or apply it in the repo copy
@@ -49,8 +49,15 @@
 > alone fails — every shim there is a symlink into `current/` → `0.3.1/`,
 > and the whole `~/.vite-plus/` entry is the minimal correct scope;
 > (c) `github.copilot.chat.additionalReadAccessPaths` grants read access to
-> the _agent tools_ (read_file/grep) only — it does NOT affect the terminal
-> sandbox.
+> the *agent tools* (read_file/grep) only — it does NOT affect the terminal
+> sandbox. (d) **Individual files are valid allowRead entries (verified
+> 2026-10-01):** `~/.gitconfig` and `~/.gitconfig.common` were added and
+> the git include chain resolves sandboxed — see §6 for the identity and
+> signing consequences. (e) **Windows-side paths under `/mnt/c` are valid
+> allowRead entries (verified 2026-10-07):**
+> `/mnt/c/Users/<user>/AppData/Roaming/Code/User/` was added and sandboxed
+> `ls`/`grep` against the Windows-side settings and chatSessions JSONL now
+> succeed without escalation — see §2 for the verification caveat.
 
 - **Vite+ wraps the package manager, never the reverse.** Run project scripts
   with `vpr <script>` (e.g. `vpr test`, `vpr lint:knip`). Never `pnpm run` or
@@ -121,6 +128,16 @@
   `$HOME` (including `~/.vite-plus` without the settings change, and
   `~/.local/share/pnpm`) is **masked** — `ls`/`stat`/`exec` all return
   ENOENT. Do not conclude files are missing from a sandboxed `ls`.
+  `/mnt/c` is denyRead/denyWrite by user settings since 2026-10-01;
+  per-session approval is the user's preference (Windows-side access via
+  `c:` URI schemes may bypass the linux-sandbox setting). Exception
+  (verified 2026-10-07): `/mnt/c/Users/<user>/AppData/Roaming/Code/User/`
+  is in allowRead — sandboxed reads of Windows-side settings and the
+  host-side chatSessions JSONL (§7.1) work without escalation. **Caveat:
+  an allowRead change takes effect mid-session without reload, but early
+  post-change "successes" may still be escalation pairs from before the
+  setting landed — audit the JSONL (§7.1) and credit the setting only on
+  a single `=false` record with no `=true` twin.**
 
 - **`/tmp` is READ-ONLY in the sandbox (corrected 2026-09-15).** Earlier
   revisions called `/tmp` the safe scratch space — that observation was
@@ -146,7 +163,7 @@
   sandboxed command's output looks sandbox-blocked, the harness may re-run
   it unsandboxed after a user approval prompt. The agent receives only the
   final result with no indication the mode changed. Session-forensics
-  signature of an escalation: the host-side JSONL (§7) contains a _pair_ of
+  signature of an escalation: the host-side JSONL (§7) contains a *pair* of
   records for the same `commandLine` — first
   `requestUnsandboxedExecution=false`, then `=true`. 16 such pairs were
   found in one session (2026-09-15) and every "warm-up success" traced to
@@ -156,6 +173,27 @@
 > (2) if a previously-failing command suddenly succeeds, check the JSONL
 > for an escalation pair before crediting any code change; (3) treat
 > user-reported approval prompts as a signal to re-examine which mode ran.
+
+- **Output-content escalation false positive (verified 2026-10-01,
+  session `898c9328`).** The escalation heuristic inspects the command
+  **output**, not just the command line or exit code — and it escalates
+  even when the command **exited 0**. Every escalated record in the
+  audited session carried
+  `requestUnsandboxedExecutionReason = "The sandboxed execution output
+  indicated the sandbox blocked the command."` while its captured output
+  contained the literal strings `ENOENT` and `Auto-escalation` — quoted
+  from THIS documentation by `git diff` of AGENTS.md files. Self-
+  referential trap: any command whose output *documents* the sandbox
+  (diff/grep/cat of the rules docs, bug reports quoting them) matches
+  the signature. The harness's own sandbox-advisory boilerplate appended
+  to tool results feeds the heuristic more matching text. Workarounds:
+  (1) mask signature strings in output
+  (`sed 's/ENOENT/E-NOENT/g'`) when inspecting sandbox-related docs;
+  (2) write output to a file and read it with the file tool instead of
+  the terminal; (3) request unsandboxed explicitly for multi-repo
+  command batches so the mode is deterministic and visible. Prefer
+  `git -C <path>` over cross-folder `cd` chains (weak evidence, see
+  §3).
 
 ## 3. Retry discipline — never burn runs on a deterministic failure
 
@@ -211,6 +249,34 @@
   real listing first (unsandboxed run, or pasted from the user) — a guessed
   glob produced a broken sync script that the user had to fix.
 
+- **The unsandboxed rule is PATH-based, not operation-based (JSONL-audited
+  2026-09-29, session `93544b5f`).** 662 command records: 71 explicitly
+  unsandboxed, 70 escalation pairs, 594 involving `~/.copilot/` paths —
+  every pair = one wasted sandboxed attempt + one user approval. Read-only
+  `ls`/`head`/`cat` fail in the sandbox just like writes when the path is
+  masked. **Rule: request unsandboxed UP FRONT for ANY command touching
+  `$HOME` outside {workspace, `~/.vscode-server/`, `$TMPDIR`, allowRead}**
+  — and batch such operations into one call instead of sandbox-first
+  probing.
+
+- **Escalation-confounded "intermittent" observations are the most
+  dangerous retry-loop trigger (session `93544b5f`).** A ~25-call
+  identical `cat|diff` loop was entirely escalation pairs — each
+  "failure" a sandboxed ENOENT, each rare "success" the unsandboxed
+  re-run after user approval. From inside, this looked like intermittent
+  visibility; the JSONL showed alternating modes. The occasional success
+  masquerades as new information. Root cause: a model that doesn't fully
+  understand sandbox behavior assumes non-determinism where results are
+  deterministic — the wrong model directly manufactures retries and
+  loops. Audit the JSONL (§7.1); never retry-loop.
+
+- **Subagent retry-loop hazard (verified 2026-10-01).** A subagent given
+  a non-matching glob re-issued the identical failing search 43+ times
+  until harness termination, returning "completed with no output". For
+  multi-root subagent tasks: verify the glob matches the actual layout
+  before delegating, scope globs per workspace folder correctly, or
+  survey in the main session where course correction is possible.
+
 ## 4. Long-running and interactive commands
 
 - **Watch-mode scripts (`vpr devtest`) and dev servers must run as background
@@ -240,6 +306,14 @@
   (`>/dev/null` is equally fast but loses all progress output — `| cat`
   preserves the milestone lines users want to see.)
 
+- **`vp fmt` as a staged pre-commit command is a foot-gun (verified
+  2026-10-01).** oxfmt exits 2 when every matched file is excluded by
+  ignore rules (markdown-only staged sets with `'**/*.md'` in
+  `fmt.ignorePatterns`) — blocking markdown-only commits. `vp check
+  --fix` tolerates the empty fmt target set and also picks up
+  lint/typecheck on staged files. **Staged config should use `vp check
+  --fix`, not `vp fmt`.**
+
 - **Hook authors: the same throttle applies to hook output.** A hook that
   emits progress/spinner output streams into the same chat-panel display
   path on every tool call. Keep hook stdout to a single JSON line (or
@@ -263,23 +337,37 @@
   commit only).** gpg-agent caches it afterward — subsequent commits in
   the session go through without prompting. If the first commit fails
   with an identity/passphrase error, hand the commit to the user rather
-  than retrying. Also: "Committer identity unknown" in a sandboxed
-  terminal is often the `$HOME` visibility gap — an `ls ~/.gitconfig.common`
-  immediately before the commit has resolved it (then set repo-local
-  `git config user.name/user.email` from that file's values).
+  than retrying.
 
-- **Pre-commit hooks that invoke vp fail in sandboxed terminals
-  (verified 2026-09-03, chat-hub).** The vite+ hook dispatcher runs
-  `node_modules/.bin/vp`, whose shim guards with `[ -x "$basedir/node" ]`.
-  Under the sandbox's seccomp layer that test returns false for files
-  hardlinked into the pnpm store (outside the workspace), so the shim
-  falls through to bare `node` → exit 127 → hook fails → commit blocked.
-  The same commit succeeds unsandboxed. **Rule: any `git commit` in a
-  repo with a vp-based pre-commit hook must run unsandboxed** (request
-  it with a reason up front — don't burn a sandboxed attempt first).
-  In the user's own terminal this never occurs (no seccomp layer, full
-  PATH). Diagnostic signature: hook output shows the audit script
-  passing, then `./node_modules/.bin/vp: 53: exec: node: not found`.
+- **Identity resolution works sandboxed (updated 2026-10-01).** With
+  `~/.gitconfig` and `~/.gitconfig.common` in `allowRead` (§1), the
+  include chain resolves and `commit.gpgsign`/`user.signingkey`/identity
+  all come from the global config — the old "empty ident → run
+  unsandboxed / set repo-local identity" advice is superseded. The
+  modern workaround for a repo without global resolution is inline
+  `-c user.name=... -c user.email=...`. Global git config is the single
+  source of truth: repo-local identity/signing overrides shadow the
+  chain and drift on key rotation — remove them.
+
+- **Signing gotcha: relative include paths break silently.**
+  `~/.gitconfig` includes `./.gitconfig.common` relatively; when the
+  target is masked, the include chain breaks with NO error and commits
+  go out unsigned. Rules: after any allowRead change, verify with
+  `git config --get commit.gpgsign` sandboxed; after any commit, verify
+  `git log -1 --format='%G?'` = G (a silent break shows as N).
+
+- **`git commit` in a repo with a vp-based pre-commit hook: request
+  unsandboxed up front (updated 2026-10-01).** The ORIGINAL failure
+  (seccomp broke the vp shim → `exec: node: not found`) predates the
+  `allowRead: ["~/.vite-plus/"]` setting (2026-09-15) that fixed the
+  underlying path masking: sandboxed commits with the full vp pre-commit
+  hook now succeed (verified 2026-10-01, chat-hub `9136e77`). However,
+  GPG signing still needs the user's passphrase/gpg-agent, so the
+  commit-safely procedure remains: request unsandboxed with a reason up
+  front — don't burn a sandboxed attempt first. In the user's own
+  terminal none of this occurs. Diagnostic signature (historical): hook
+  output shows the audit script passing, then
+  `./node_modules/.bin/vp: 53: exec: node: not found`.
 
 - **vp hook scripts are re-executed by `/bin/sh -e` regardless of their
   shebang (verified 2026-09-07, chat-hub).** The vite+ dispatcher
@@ -329,7 +417,7 @@ access), check locations in this order:
 1. **Windows host UI side** (authoritative, complete):
    `/mnt/c/Users/<user>/AppData/Roaming/Code/User/workspaceStorage/<ws-hash>/chatSessions/<session-id>.jsonl`
    — per-command `requestUnsandboxedExecution`, `requestAllowNetwork`,
-   `commandLine`, timestamps. **Escalation signature:** a _pair_ of records
+   `commandLine`, timestamps. **Escalation signature:** a *pair* of records
    with the same `commandLine` — first `requestUnsandboxedExecution=false`,
    then `=true` (see §2). Note (2026-09-15): in the current VS Code build
    the `exitCode`/`sandboxedExecution` fields were not found at their
@@ -408,6 +496,19 @@ the JSONL schema drifts between VS Code builds (`exitCode`/
 `requestUnsandboxedExecution` pairing has remained reliable. The WSL
 username in the path can differ from the login name (`jonat` vs
 `jonathan`).
+
+Audit-ambiguity note (2026-10-01): escalation pairs make it hard to
+distinguish agent-requested from harness-initiated unsandboxed runs —
+agents now also legitimately request unsandboxed explicitly, producing
+single `=true` records. The two cases are distinguishable only by the
+absence of a preceding `=false` twin.
+
+Context-integrity note (verified 2026-10-01, session `898c9328`): a
+turn's records can go missing from Chat Debug while the host-side JSONL
+stays complete and disk work persists; session close/reopen restored
+agent-side context. Reinforces: the JSONL is the only authoritative
+record; after mid-turn anomalies, verify disk state directly
+(`git status`/`git diff` per repo) rather than trusting the transcript.
 
 ## 8. Validation loop
 
@@ -508,8 +609,8 @@ workflows:
   explicitly with a reason). Editing the repo copy can be done with the
   VS Code edit tool (it sees the real filesystem).
 
+<!-- agent-terminal-rules: synced=2026-10-07T23:18:54Z src=f5b21c75 -->
+<!-- agent-terminal-rules: synced=2026-10-07T11:16:17Z src=a44b5d08 -->
+<!-- agent-terminal-rules: synced=2026-10-07T09:38:07Z src=2dafcfeb -->
 <!-- agent-terminal-rules: synced=2026-10-06T04:30:24Z src=c299d7b0 -->
 <!-- agent-terminal-rules: synced=2026-09-17T08:20:59Z src=df43015d -->
-<!-- agent-terminal-rules: synced=2026-09-16T09:09:12Z src=907cc1db -->
-<!-- agent-terminal-rules: synced=2026-09-15T11:08:49Z src=9382088f -->
-<!-- agent-terminal-rules: synced=2026-09-08T07:02:20Z src=7f3d305f -->
