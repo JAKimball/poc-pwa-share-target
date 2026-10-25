@@ -28,6 +28,14 @@
 > auto-escalation, not a real mechanism. The sandbox model below is verified
 > against the harness source (`@vscode/sandbox-runtime`) and the host-side
 > session JSONL.
+>
+> **2026-10-25 revision — Vite+ v1.4.0 split layout.** The single
+> `~/.vite-plus/` tree is gone; the toolchain moved to
+> `~/.local/share/vite-plus/` (config: `~/.config/vite-plus/`; cache:
+> `~/.cache/vite-plus/`; state: `~/.local/state/vite-plus/`). All
+> invocation forms and the allowRead entry below were updated and
+> re-verified sandboxed. The `env` file no longer exports `VP_HOME` —
+> guard on PATH instead.
 
 ## 1. Command invocation — get it right the first time
 
@@ -37,18 +45,19 @@
 > ```jsonc
 > "chat.agent.sandbox.fileSystem.linux": {
 >   "denyRead": [],
->   "allowRead": ["~/.vite-plus/"],
+>   "allowRead": ["~/.local/share/vite-plus/"],
 >   "allowWrite": [],
 >   "denyWrite": []
 > }
 > ```
 >
-> Verified working 2026-09-15. Notes: (a) paths are **literal only** — no
-> globs (the sandbox silently drops glob patterns on Linux); (b) the sandbox
-> resolves **real paths post-symlink**, so scoping to `~/.vite-plus/bin/`
-> alone fails — every shim there is a symlink into `current/` → `0.3.1/`,
-> and the whole `~/.vite-plus/` entry is the minimal correct scope;
-> (c) `github.copilot.chat.additionalReadAccessPaths` grants read access to
+> Verified working 2026-09-15; updated 2026-10-25 for the Vite+ v1.4.0
+> split layout. Notes: (a) paths are **literal only** — no globs (the
+> sandbox silently drops glob patterns on Linux); (b) the sandbox resolves
+> **real paths post-symlink**, so scoping to `~/.local/share/vite-plus/bin/`
+> alone fails — every shim there is a symlink into `current/` → `1.4.0/`,
+> and the whole `~/.local/share/vite-plus/` entry is the minimal correct
+> scope; (c) `github.copilot.chat.additionalReadAccessPaths` grants read access to
 > the *agent tools* (read_file/grep) only — it does NOT affect the terminal
 > sandbox. (d) **Individual files are valid allowRead entries (verified
 > 2026-10-01):** `~/.gitconfig` and `~/.gitconfig.common` were added and
@@ -65,18 +74,18 @@
   PATH, which breaks vp's node resolution
   (`error: Cannot find binary path for command 'node'`).
 
-- **Canonical invocation forms (verified fully sandboxed 2026-09-15, zero
-  escalations):**
+- **Canonical invocation forms (verified fully sandboxed 2026-09-15;
+  re-verified 2026-10-25 under the v1.4.0 split layout, zero escalations):**
 
   ```sh
   # absolute paths — no prefix needed:
-  "$HOME/.vite-plus/bin/vpr" <script>
-  "$HOME/.vite-plus/bin/vp" <cmd>
-  "$HOME/.vite-plus/bin/node" --version          # vp-managed node
+  "$HOME/.local/share/vite-plus/bin/vpr" <script>
+  "$HOME/.local/share/vite-plus/bin/vp" <cmd>
+  "$HOME/.local/share/vite-plus/bin/node" --version  # vp-managed node
 
   # bare names — one inline PATH prefix:
-  PATH="$HOME/.vite-plus/bin:$PATH" CI=true vpr <script>
-  PATH="$HOME/.vite-plus/bin:$PATH" CI=true pnpm <cmd>
+  PATH="$HOME/.local/share/vite-plus/bin:$PATH" CI=true vpr <script>
+  PATH="$HOME/.local/share/vite-plus/bin:$PATH" CI=true pnpm <cmd>
   ```
 
   Bare names without the prefix fail with exit 127 (not on the sandbox
@@ -106,8 +115,8 @@
   workspace-file edit.
 
 - **"command not found" does not mean absent.** The sandbox PATH simply
-  doesn't include `~/.vite-plus/bin`. Use the canonical forms above before
-  concluding a tool is missing.
+  doesn't include `~/.local/share/vite-plus/bin`. Use the canonical forms
+  above before concluding a tool is missing.
 
 ## 2. Sandbox and network — how it actually works
 
@@ -125,9 +134,10 @@
 - **Sandbox-visible filesystem (verified 2026-09-15):** the workspace,
   `$HOME/.vscode-server/`, `$TMPDIR`, and anything added via
   `chat.agent.sandbox.fileSystem.linux.allowRead`. Everything else under
-  `$HOME` (including `~/.vite-plus` without the settings change, and
-  `~/.local/share/pnpm`) is **masked** — `ls`/`stat`/`exec` all return
-  ENOENT. Do not conclude files are missing from a sandboxed `ls`.
+  `$HOME` (including `~/.local/share/vite-plus` without the settings
+  change, and `~/.local/share/pnpm`) is **masked** —
+  `ls`/`stat`/`exec` all return ENOENT. Do not conclude files are missing
+  from a sandboxed `ls`.
   `/mnt/c` is denyRead/denyWrite by user settings since 2026-10-01;
   per-session approval is the user's preference (Windows-side access via
   `c:` URI schemes may bypass the linux-sandbox setting). Exception
@@ -299,8 +309,8 @@
   renders); only breaking the TTY does. Rule:
 
   ```sh
-  "$HOME/.vite-plus/bin/vp" staged | cat
-  "$HOME/.vite-plus/bin/vp" check | cat
+  "$HOME/.local/share/vite-plus/bin/vp" staged | cat
+  "$HOME/.local/share/vite-plus/bin/vp" check | cat
   ```
 
   (`>/dev/null` is equally fast but loses all progress output — `| cat`
@@ -359,8 +369,9 @@
 - **`git commit` in a repo with a vp-based pre-commit hook: request
   unsandboxed up front (updated 2026-10-01).** The ORIGINAL failure
   (seccomp broke the vp shim → `exec: node: not found`) predates the
-  `allowRead: ["~/.vite-plus/"]` setting (2026-09-15) that fixed the
-  underlying path masking: sandboxed commits with the full vp pre-commit
+  `allowRead: ["~/.local/share/vite-plus/"]` setting (originally
+  `~/.vite-plus/`, 2026-09-15; repointed 2026-10-25 for the v1.4.0 split
+  layout) that fixed the underlying path masking: sandboxed commits with the full vp pre-commit
   hook now succeed (verified 2026-10-01, chat-hub `9136e77`). However,
   GPG signing still needs the user's passphrase/gpg-agent, so the
   commit-safely procedure remains: request unsandboxed with a reason up
@@ -609,8 +620,8 @@ workflows:
   explicitly with a reason). Editing the repo copy can be done with the
   VS Code edit tool (it sees the real filesystem).
 
+<!-- agent-terminal-rules: synced=2026-10-25T22:32:40Z src=cbdc6881 -->
 <!-- agent-terminal-rules: synced=2026-10-07T23:18:54Z src=f5b21c75 -->
 <!-- agent-terminal-rules: synced=2026-10-07T11:16:17Z src=a44b5d08 -->
 <!-- agent-terminal-rules: synced=2026-10-07T09:38:07Z src=2dafcfeb -->
 <!-- agent-terminal-rules: synced=2026-10-06T04:30:24Z src=c299d7b0 -->
-<!-- agent-terminal-rules: synced=2026-09-17T08:20:59Z src=df43015d -->
