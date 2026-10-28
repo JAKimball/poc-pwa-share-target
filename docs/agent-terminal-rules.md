@@ -129,7 +129,28 @@
   `whichSync`, spawns socat bridges for filtered network, and wraps the
   command in `bwrap --new-session --die-with-parent` with ro-binds for each
   allowed path plus a seccomp filter (unix-socket blocking). WSL1 is not
-  supported (WSL2 required for full enforcement).
+  supported (WSL2 required for full enforcement). Runtime sources (seccomp
+  policy, bwrap arg assembly):
+  `~/.vscode-server/bin/<rev>/node_modules/@vscode/sandbox-runtime/`.
+
+- **Seccomp blocks only `socket(AF_UNIX, …)` (+ io_uring syscalls); TCP
+  is free (verified 2026-10-25).** Policy source:
+  `@vscode/sandbox-runtime` `vendor/seccomp-src/seccomp-unix-block.c`.
+  The escape hatch `chat.agent.sandbox.advanced.runtime:
+  {"network":{"allowAllUnixSockets":true}}` disables the block
+  entirely — rejected 2026-10-25 (all-or-nothing security trade-off;
+  revisit only if a Unix-socket bridge becomes burdensome).
+
+- **Each sandboxed command gets its own PID namespace** (`--unshare-pid`
+  per invocation) — cross-call `kill -0` is meaningless; probe liveness
+  over the shared network namespace (`/dev/tcp/127.0.0.1:<port>`) or
+  the filesystem. The network namespace IS shared while
+  `network.enabled: false` — localhost TCP works, which is what makes
+  a sandboxed TCP/FIFO relay possible (verified 2026-10-25).
+
+- **WSL interop uses per-PID sockets under `/run/WSL/<pid>_interop`** —
+  interop access cannot be path-allowlisted; any Windows `.exe` launch
+  must run unsandboxed (verified 2026-10-25).
 
 - **Sandbox-visible filesystem (verified 2026-09-15):** the workspace,
   `$HOME/.vscode-server/`, `$TMPDIR`, and anything added via
@@ -187,7 +208,8 @@
 > user-reported approval prompts as a signal to re-examine which mode ran.
 
 - **Output-content escalation false positive (verified 2026-10-01,
-  session `898c9328`).** The escalation heuristic inspects the command
+  session `898c9328`; re-verified 2026-10-28 — still active).** The
+  escalation heuristic inspects the command
   **output**, not just the command line or exit code — and it escalates
   even when the command **exited 0**. Every escalated record in the
   audited session carried
@@ -203,7 +225,9 @@
   (`sed 's/ENOENT/E-NOENT/g'`) when inspecting sandbox-related docs;
   (2) write output to a file and read it with the file tool instead of
   the terminal; (3) request unsandboxed explicitly for multi-repo
-  command batches so the mode is deterministic and visible. Prefer
+  command batches so the mode is deterministic and visible; (4) read
+  documentation with the file tools (`read_file`) — the file-tool
+  layer has no output heuristic. Prefer
   `git -C <path>` over cross-folder `cd` chains (weak evidence, see
   §3).
 
@@ -694,8 +718,8 @@ durability rules.
   (2026-10-27: `~/always-allow-scope-test-4.md` was believed "never
   materialized" for a week — it had existed all along).
 
+<!-- agent-terminal-rules: synced=2026-10-28T10:42:26Z src=74682c8c -->
 <!-- agent-terminal-rules: synced=2026-10-28T08:05:00Z src=45019916 -->
 <!-- agent-terminal-rules: synced=2026-10-28T07:19:02Z src=f8a4b286 -->
 <!-- agent-terminal-rules: synced=2026-10-25T22:32:40Z src=cbdc6881 -->
 <!-- agent-terminal-rules: synced=2026-10-07T23:18:54Z src=f5b21c75 -->
-<!-- agent-terminal-rules: synced=2026-10-07T11:16:17Z src=a44b5d08 -->
