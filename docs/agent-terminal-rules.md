@@ -167,7 +167,9 @@
   next unsandboxed read. Any script that deploys to `$HOME` (hook
   installers, config updates, dotfile edits) must run unsandboxed —
   request it with a reason BEFORE running, not after a silent loss.
-  Verify deployments with an unsandboxed read.
+  Verify deployments with an unsandboxed read. This rule is about the
+  SANDBOXED TERMINAL layer; file-tool writes (`create_file` etc.) are a
+  different layer with different durability rules — see §11.
 
 - **Auto-escalation is invisible to the agent — never build on it.** When a
   sandboxed command's output looks sandbox-blocked, the harness may re-run
@@ -455,7 +457,11 @@ access), check locations in this order:
    reached the model. Caveat: naive text-matching of the log gives false
    positives — the agent's own script source echoed in earlier tool
    results contains the same strings (distinguish by `%s` placeholder
-   presence).
+   presence). `tool_call` spans likewise carry `attrs.args` +
+   `attrs.result` — the authoritative per-call record (2026-10-27).
+   `status:"ok"` does NOT mean the edit landed: skipped calls also log
+   ok with result text "The user chose to skip the tool call…" — the
+   result TEXT is the discriminator.
 4. **VS Code user settings live Windows-side in WSL setups (verified
    2026-10-05).**
    `/mnt/c/Users/<user>/AppData/Roaming/Code/User/settings.json` — NOT
@@ -463,6 +469,22 @@ access), check locations in this order:
    comments string-aware (not plain `json.load`) and expect pre-existing
    trailing commas (VS Code tolerates them). `/mnt/c` access may need
    unsandboxed execution per the user's denyRead settings.
+5. **Session store (WSL side, open read-only):**
+   `~/.vscode-server/data/User/globalStorage/github.copilot-chat/session-store.db`
+   — the `session_files` table (`file_path, tool_name, turn_index,
+   first_seen_at`) is the per-file record of agent file-tool events. It
+   has NO Keep/Undo state column; Keep/Undo state lives in the
+   chat-editing session store (item 6), not here.
+6. **Chat-editing (Keep/Undo) state (Windows side — verified
+   2026-10-28):**
+   `/mnt/c/Users/<user>/AppData/Roaming/Code/User/workspaceStorage/<ws-hash>/chatEditingSessions/<session-id>/`
+   — `state.json` (v2: `initialFileContents` URI→content-hash map,
+   `recentSnapshot`, `timeline.checkpoints` per request/undo stop) plus
+   `contents/<hash>` content-addressed blobs (pre-edit originals +
+   intermediates). This is where Keep/Undo revert data actually lives;
+   the WSL side has no equivalent. One dir per chat session (336
+   observed, unbounded growth — housekeeping candidate). A reload can
+   silently drop queue entries while this data remains (§11).
 
 ### 7.1 Escalation audit procedure
 
@@ -620,8 +642,60 @@ workflows:
   explicitly with a reason). Editing the repo copy can be done with the
   VS Code edit tool (it sees the real filesystem).
 
+## 11. File-tool writes — durability, Keep/Undo, and grants
+
+> Verified 2026-10-27/28 on Copilot Chat 0.71.0 (evidence:
+> ai-collaboration-guides `docs/plan/obsidian-agent-integration.md`
+> E15/E16). Earlier "0-byte husk" reports (2026-10-17/19) are not
+> reproducible in current builds — historical behavior.
+
+The file-tool layer (`create_file`, `replace_string_in_file`, …) is NOT
+the sandboxed terminal layer: different permission gate, different
+durability rules.
+
+- **Writes land on disk immediately** at every tested tier
+  (`~/agent-scratch/`, `$HOME` top, `/var/tmp`, workspace folders) and
+  survive window reloads. "Pending edits" are a post-hoc REVIEW layer,
+  not a durability gate. Keep = leave the change as-is (effectively a
+  no-op). Undo = revert to the file's pre-pending state:
+  - file-tool CREATE + Undo → file DELETED;
+  - MODIFY + Undo → clean revert to prior content.
+- **The pending queue holds one entry per file; modifies stack** on the
+  file's entry. Undo data IS persisted (Windows-side
+  `chatEditingSessions/<session-id>/` — §7 item 6), but the queue VIEW
+  can drop entries silently on reload (observed: reload #1 preserved 7
+  entries; reload #2 dropped 9 = silent auto-Keep, content intact).
+  Review before reloading — a dropped entry is unreachable via the UI
+  even though its content history remains on disk.
+- **Mechanism of the old "husk" reports:** `initialFileContents` maps
+  every touched file to its pre-edit content hash; a file-tool CREATE
+  maps to the EMPTY blob (`da39a3e`). Undo restores that blob — older
+  builds wrote it as a 0-byte file (the "husk"); current builds delete
+  the file instead. That build change, not path class, explains the
+  2026-10-17/19 husks.
+- **Permission gates:** (1) settings grants —
+  `chat.agent.sandbox.fileSystem.linux.allowWrite` +
+  `userConfiguredPaths.readwritePaths` (Windows-side settings.json) —
+  make writes silent in covered paths; (2) dialog grants elsewhere:
+  "Allow in this session" and "Always Allow". Measured: "Always Allow"
+  survived a window reload and covered far more than the dialog
+  displayed (silent writes at `$HOME` top AND `/var/tmp`); "Allow in
+  this session" did not survive a reload (for modifies). Dialog grants
+  are recorded in NO settings file — they live in VS Code internal
+  state. Full-restart persistence: unprobed.
+- **The dialog does not state its scope** ("The model wants to edit
+  files outside of your workspace (). …" with a mis-rendered
+  `\home\jonathan` path). Measure scope behaviorally; never infer it
+  from the dialog text, and never document a scope claim the probe did
+  not measure.
+- **Verify file-tool write success with an UNSANDBOXED `stat` in a
+  later turn** — sandboxed stats at `$HOME` top are masked (§2), and a
+  "successfully edited" tool result is not a durability claim
+  (2026-10-27: `~/always-allow-scope-test-4.md` was believed "never
+  materialized" for a week — it had existed all along).
+
+<!-- agent-terminal-rules: synced=2026-10-28T08:05:00Z src=45019916 -->
+<!-- agent-terminal-rules: synced=2026-10-28T07:19:02Z src=f8a4b286 -->
 <!-- agent-terminal-rules: synced=2026-10-25T22:32:40Z src=cbdc6881 -->
 <!-- agent-terminal-rules: synced=2026-10-07T23:18:54Z src=f5b21c75 -->
 <!-- agent-terminal-rules: synced=2026-10-07T11:16:17Z src=a44b5d08 -->
-<!-- agent-terminal-rules: synced=2026-10-07T09:38:07Z src=2dafcfeb -->
-<!-- agent-terminal-rules: synced=2026-10-06T04:30:24Z src=c299d7b0 -->
